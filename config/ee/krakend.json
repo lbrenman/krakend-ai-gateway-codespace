@@ -1,0 +1,316 @@
+{
+  "$schema": "https://www.krakend.io/schema/v3.0/krakend.json",
+  "version": 4,
+  "name": "KrakenD AI Gateway (Enterprise Edition) - Codespace",
+  "port": 8080,
+  "timeout": "60s",
+  "extra_config": {
+    "telemetry/logging": {
+      "level": "INFO",
+      "prefix": "[KRAKEND]",
+      "stdout": true
+    },
+    "security/cors": {
+      "allow_origins": [
+        "*"
+      ],
+      "allow_methods": [
+        "GET",
+        "POST",
+        "OPTIONS"
+      ],
+      "allow_headers": [
+        "Content-Type",
+        "Accept",
+        "X-LLM"
+      ],
+      "max_age": "12h"
+    },
+    "router": {
+      "return_error_msg": true
+    }
+  },
+  "endpoints": [
+    {
+      "@comment": "Sanity check - no API key needed. Filters the upstream response to 3 fields.",
+      "endpoint": "/demo/todos/{id}",
+      "method": "GET",
+      "backend": [
+        {
+          "host": [
+            "https://jsonplaceholder.typicode.com"
+          ],
+          "url_pattern": "/todos/{id}",
+          "allow": [
+            "id",
+            "title",
+            "completed"
+          ]
+        }
+      ]
+    },
+    {
+      "@comment": "AI proxy: list OpenAI models. Gateway injects the key; client sends none.",
+      "endpoint": "/llm/openai/v1/models",
+      "method": "GET",
+      "output_encoding": "no-op",
+      "extra_config": {
+        "qos/ratelimit/router": {
+          "max_rate": 20,
+          "client_max_rate": 5,
+          "strategy": "ip"
+        }
+      },
+      "backend": [
+        {
+          "host": [
+            "https://api.openai.com"
+          ],
+          "url_pattern": "/v1/models",
+          "encoding": "no-op",
+          "extra_config": {
+            "modifier/martian": {
+              "header.Modifier": {
+                "scope": [
+                  "request"
+                ],
+                "name": "Authorization",
+                "value": "Bearer {{ env `OPENAI_API_KEY` }}"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "@comment": "AI proxy: OpenAI Chat Completions, native OpenAI payload in and out.",
+      "endpoint": "/llm/openai/v1/chat/completions",
+      "method": "POST",
+      "output_encoding": "no-op",
+      "input_headers": [
+        "Content-Type"
+      ],
+      "extra_config": {
+        "qos/ratelimit/router": {
+          "max_rate": 20,
+          "client_max_rate": 5,
+          "strategy": "ip"
+        }
+      },
+      "backend": [
+        {
+          "host": [
+            "https://api.openai.com"
+          ],
+          "url_pattern": "/v1/chat/completions",
+          "method": "POST",
+          "encoding": "no-op",
+          "extra_config": {
+            "modifier/martian": {
+              "header.Modifier": {
+                "scope": [
+                  "request"
+                ],
+                "name": "Authorization",
+                "value": "Bearer {{ env `OPENAI_API_KEY` }}"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "@comment": "AI proxy: Anthropic Messages API, native Anthropic payload in and out.",
+      "endpoint": "/llm/anthropic/v1/messages",
+      "method": "POST",
+      "output_encoding": "no-op",
+      "input_headers": [
+        "Content-Type"
+      ],
+      "extra_config": {
+        "qos/ratelimit/router": {
+          "max_rate": 20,
+          "client_max_rate": 5,
+          "strategy": "ip"
+        }
+      },
+      "backend": [
+        {
+          "host": [
+            "https://api.anthropic.com"
+          ],
+          "url_pattern": "/v1/messages",
+          "method": "POST",
+          "encoding": "no-op",
+          "extra_config": {
+            "modifier/martian": {
+              "fifo.Group": {
+                "scope": [
+                  "request"
+                ],
+                "aggregateErrors": true,
+                "modifiers": [
+                  {
+                    "header.Modifier": {
+                      "scope": [
+                        "request"
+                      ],
+                      "name": "x-api-key",
+                      "value": "{{ env `ANTHROPIC_API_KEY` }}"
+                    }
+                  },
+                  {
+                    "header.Modifier": {
+                      "scope": [
+                        "request"
+                      ],
+                      "name": "anthropic-version",
+                      "value": "2023-06-01"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "@comment": "AI Gateway (EE): unified interface -> OpenAI. Send {instructions?, contents}.",
+      "endpoint": "/ai/openai",
+      "method": "POST",
+      "extra_config": {
+        "qos/ratelimit/router": {
+          "max_rate": 20,
+          "client_max_rate": 5,
+          "strategy": "ip"
+        }
+      },
+      "backend": [
+        {
+          "host": [
+            "https://api.openai.com"
+          ],
+          "url_pattern": "/v1/responses",
+          "method": "POST",
+          "extra_config": {
+            "ai/llm": {
+              "openai": {
+                "v1": {
+                  "credentials": "{{ env `OPENAI_API_KEY` }}",
+                  "debug": false,
+                  "variables": {
+                    "model": "{{ env `OPENAI_MODEL` | default `gpt-5-nano` }}",
+                    "max_output_tokens": 1024
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "@comment": "AI Gateway (EE): unified interface -> Anthropic. Same request/response shape as /ai/openai.",
+      "endpoint": "/ai/anthropic",
+      "method": "POST",
+      "extra_config": {
+        "qos/ratelimit/router": {
+          "max_rate": 20,
+          "client_max_rate": 5,
+          "strategy": "ip"
+        }
+      },
+      "backend": [
+        {
+          "host": [
+            "https://api.anthropic.com"
+          ],
+          "url_pattern": "/v1/messages",
+          "method": "POST",
+          "extra_config": {
+            "ai/llm": {
+              "anthropic": {
+                "v1": {
+                  "credentials": "{{ env `ANTHROPIC_API_KEY` }}",
+                  "debug": false,
+                  "variables": {
+                    "model": "{{ env `ANTHROPIC_MODEL` | default `claude-haiku-4-5` }}",
+                    "max_tokens": 1024
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "@comment": "AI Gateway (EE): header-based LLM routing. X-LLM: openai -> OpenAI, anything else -> Anthropic.",
+      "endpoint": "/ai/multi",
+      "method": "POST",
+      "input_headers": [
+        "X-LLM"
+      ],
+      "extra_config": {
+        "qos/ratelimit/router": {
+          "max_rate": 20,
+          "client_max_rate": 5,
+          "strategy": "ip"
+        }
+      },
+      "backend": [
+        {
+          "host": [
+            "https://api.openai.com"
+          ],
+          "url_pattern": "/v1/responses",
+          "method": "POST",
+          "extra_config": {
+            "ai/llm": {
+              "openai": {
+                "v1": {
+                  "credentials": "{{ env `OPENAI_API_KEY` }}",
+                  "debug": false,
+                  "variables": {
+                    "model": "{{ env `OPENAI_MODEL` | default `gpt-5-nano` }}",
+                    "max_output_tokens": 1024
+                  }
+                }
+              }
+            },
+            "backend/conditional": {
+              "strategy": "header",
+              "name": "X-LLM",
+              "value": "openai"
+            }
+          }
+        },
+        {
+          "host": [
+            "https://api.anthropic.com"
+          ],
+          "url_pattern": "/v1/messages",
+          "method": "POST",
+          "extra_config": {
+            "ai/llm": {
+              "anthropic": {
+                "v1": {
+                  "credentials": "{{ env `ANTHROPIC_API_KEY` }}",
+                  "debug": false,
+                  "variables": {
+                    "model": "{{ env `ANTHROPIC_MODEL` | default `claude-haiku-4-5` }}",
+                    "max_tokens": 1024
+                  }
+                }
+              }
+            },
+            "backend/conditional": {
+              "strategy": "fallback"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

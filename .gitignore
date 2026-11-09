@@ -1,0 +1,13 @@
+# Secrets - never commit
+LICENSE
+LICENSE_DEV
+.env
+
+# Rendered config output
+*.rendered.json
+out.json
+
+# OS / editor
+.DS_Store
+.vscode/*
+!.vscode/extensions.json

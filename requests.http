@@ -1,0 +1,82 @@
+### KrakenD AI Gateway - sample requests
+### Open in VS Code and click "Send Request" above each block (REST Client extension).
+### In a Codespace, localhost:8080 is the gateway. No API keys go in these requests -
+### the gateway injects them from your Codespaces secrets.
+
+@base = http://localhost:8080
+
+### Health
+GET {{base}}/__health
+
+### Demo backend (no key needed) - response filtered to id/title/completed
+GET {{base}}/demo/todos/1
+
+############################################################
+# Community + Enterprise: transparent AI proxy (native payloads)
+############################################################
+
+### OpenAI - list models (cheap key check)
+GET {{base}}/llm/openai/v1/models
+
+### OpenAI - chat completions
+POST {{base}}/llm/openai/v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "gpt-5-nano",
+  "messages": [
+    { "role": "user", "content": "Explain an API gateway in one sentence." }
+  ]
+}
+
+### Anthropic - messages
+POST {{base}}/llm/anthropic/v1/messages
+Content-Type: application/json
+
+{
+  "model": "claude-haiku-4-5",
+  "max_tokens": 256,
+  "messages": [
+    { "role": "user", "content": "Explain an API gateway in one sentence." }
+  ]
+}
+
+############################################################
+# Enterprise only (needs LICENSE): unified AI Gateway interface
+# Same request + response shape regardless of vendor.
+############################################################
+
+### Unified -> OpenAI
+POST {{base}}/ai/openai
+Content-Type: application/json
+
+{
+  "instructions": "Act as a 1000 dollar consultant. Be brief.",
+  "contents": "Tell me a consultant joke"
+}
+
+### Unified -> Anthropic
+POST {{base}}/ai/anthropic
+Content-Type: application/json
+
+{
+  "instructions": "Act as a 1000 dollar consultant. Be brief.",
+  "contents": "Tell me a consultant joke"
+}
+
+### Header-based routing -> OpenAI
+POST {{base}}/ai/multi
+Content-Type: application/json
+X-LLM: openai
+
+{
+  "contents": "Which LLM vendor are you from? One sentence."
+}
+
+### Header-based routing -> fallback (Anthropic)
+POST {{base}}/ai/multi
+Content-Type: application/json
+
+{
+  "contents": "Which LLM vendor are you from? One sentence."
+}

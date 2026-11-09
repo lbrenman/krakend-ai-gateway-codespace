@@ -1,0 +1,48 @@
+# KrakenD AI Gateway - Codespace
+#
+# Two mutually exclusive profiles:
+#   ce  -> KrakenD Community Edition (free, open source, no license)
+#   ee  -> KrakenD Enterprise Edition (AI Gateway: ai/llm unified interface, needs ./LICENSE)
+#
+# Don't call this directly unless you want to - scripts/start.sh picks the right
+# profile for you (EE when ./LICENSE exists, CE otherwise).
+#
+# Config files are Flexible Configuration templates (FC_ENABLE=1) so API keys come
+# from environment variables / Codespaces secrets and are never written to disk.
+
+services:
+  krakend-ce:
+    profiles: ["ce"]
+    image: "krakend:${KRAKEND_VERSION:-3.0.3}"
+    container_name: krakend
+    ports:
+      - "8080:8080"
+    environment:
+      - FC_ENABLE=1
+      - FC_OUT=/tmp/krakend-rendered.json
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    volumes:
+      - ./config/ce:/etc/krakend/config:ro
+    command: ["run", "-c", "/etc/krakend/config/krakend.json"]
+    restart: unless-stopped
+
+  krakend-ee:
+    profiles: ["ee"]
+    image: "krakend/krakend-ee:${KRAKEND_VERSION:-3.0.3}"
+    container_name: krakend
+    ports:
+      - "8080:8080"
+    environment:
+      - FC_ENABLE=1
+      - FC_OUT=/tmp/krakend-rendered.json
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-5-nano}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-claude-haiku-4-5}
+    volumes:
+      - ./config/ee:/etc/krakend/config:ro
+      # KrakenD's working dir is /etc/krakend, so it finds ./LICENSE here
+      - ./LICENSE:/etc/krakend/LICENSE:ro
+    command: ["run", "-c", "/etc/krakend/config/krakend.json"]
+    restart: unless-stopped

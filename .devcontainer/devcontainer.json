@@ -1,0 +1,53 @@
+{
+  "name": "KrakenD AI Gateway",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "hostRequirements": {
+    "cpus": 2,
+    "memory": "4gb"
+  },
+  "containerEnv": {
+    "KRAKEND_VERSION": "3.0.3"
+  },
+  "secrets": {
+    "OPENAI_API_KEY": {
+      "description": "Optional. OpenAI API key. The gateway injects it into requests to api.openai.com so clients never see it."
+    },
+    "ANTHROPIC_API_KEY": {
+      "description": "Optional. Anthropic API key. The gateway injects it into requests to api.anthropic.com so clients never see it."
+    },
+    "KRAKEND_LICENSE_B64": {
+      "description": "Optional. base64-encoded KrakenD Enterprise LICENSE file. When present, the Enterprise image starts and the ai/llm AI Gateway endpoints are enabled.",
+      "documentationUrl": "https://www.krakend.io/docs/enterprise/overview/license-file/"
+    }
+  },
+  "forwardPorts": [8080],
+  "portsAttributes": {
+    "8080": {
+      "label": "KrakenD Gateway",
+      "onAutoForward": "notify"
+    }
+  },
+  "postCreateCommand": "bash scripts/setup.sh",
+  "postStartCommand": "bash scripts/start.sh",
+  "customizations": {
+    "codespaces": {
+      "openFiles": ["README.md", "requests.http"]
+    },
+    "vscode": {
+      "extensions": [
+        "humao.rest-client"
+      ],
+      "settings": {
+        "json.schemas": [
+          {
+            "fileMatch": ["config/ce/krakend.json", "config/ee/krakend.json"],
+            "url": "https://www.krakend.io/schema/v3.0/krakend.json"
+          }
+        ]
+      }
+    }
+  }
+}
